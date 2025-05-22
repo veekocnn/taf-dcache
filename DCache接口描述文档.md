@@ -1,340 +1,58 @@
-## <h1> DCache接口描述文档 </h1>
 
+## 初始化DCache客户端 
 
-* [初始化DCacheAPI_N](#initClient)
-    * [设置ukey](#ignore_uk)
-    * [初始化DCacheLRUClient](#lru_client)
-    * [理解lru算法](#lru_principle)
-* [初始化DCacheCenter](#initDCacheCenter)
-* [返回值与含义](#retCode)
-* [SelectResult类型](#SelectResult)
-* [k-k-row,list,set,zset通用](#getmainkeycount)
-  * [读](#getmainkeycount)
-    * [getMainKeyCount](#getmainkeycount)
-    * [getMainKeyCountBatch](#getmainkeycountbatch)
-    * [getMKAllMainKey](#getallmainkey)
-  * [写](#del)
-    * [del](#del)
-    * [delBatch](#delbatch)
-    * [erase](#erase)
-* [k-k-row](#kkv-select)
-  * [读](#kkv-select)
-    * [select](#kkv-select)
-    * [selectBatch](#kkv-selectBatch)
-    * [selectBatchOr](#kkv-selectBatchOr)
-    * [scanMK](#kkv-scanmk)
-    * [scanMKFromDB](#kkv-scanmkfromdb)
-  * [写](#kkv-insert)
-    * [insert](#kkv-insert)
-    * [insertBatch](#kkv-insertbatch)
-    * [refreshExpiretime](#refreshexpiretime)
-    * [updateOrInsertNotAtom](#kkv-update)
-    * [updateAtom](#kkv-updateatom)
-    * [updateAtomFetch](#kkv-updateatomfetch)
-    * [updateAtomFetch_v2](#kkv-updateatomfetch_v2)
-    * [updateFetchBatch](#kkv-updatefetchbatch)
-    * [callFunction(Discard)](#kkv-callFunction)
-    * [callFunctionWithVer](#kkv-callFunctionWithVer)
-    * [callFunctionBatch](#kkv-callFunctionBatch)
-* [list](#list-getlist)
-  * [读](#list-getlist)
-    * [getList](#list-getlist)
-    * [getRangeList](#list-getrangelist)
-  * [写](#list-pushlist)
-    * [pushList](#list-pushlist)
-    * [popList](#list-poplist)
-    * [replaceList](#list-replacelist)
-    * [trimList](#list-trimlist)
-    * [remList](#list-remlist)
-* [set](#set-getset)
-  * [读](#set-getset)
-    * [getSet](#set-getset)
-    * [isInSet](#set-isinset)
-  * [写](#set-addSet)
-    * [addSet](#set-addset)
-    * [delSet](#set-delset)
-* [zset](#zset-getscore)
-  * [ZSet隐藏字段](#zset-field)
-  * [读](#zset-getscore)
-    * [getScoreZSet](#zset-getscore)
-    * [getRankZSet](#zset-getrank)
-    * [getRankAndScoreZSet](#zset-getrankandscore)
-    * [getRankAndScoreZSetBatch](#zset-getrankandscoreBatch)
-    * [getRangeZSet](#zset-getrange)
-    * [getRangeZSetBatch](#zset-getrangebatch)
-    * [getRangeZSetByScore](#zset-getrangebyscore)
-    * [getRangeZSetByScoreBatch](#zset-selectbatch)
-  * [写](#zset-addzset)
-    * [addZSet](#zset-addzset)
-    * [incScoreZSet](#zset-incscore)
-    * [incScoreZSetEx](#zset-incscoreex)
-    * [delZSet](#zset-del)
-    * [delRangeZSet](#zset-delrange)
-    * [updateZSet](#zset-update)
-* [key-value@DCacheAPI_N.h 推荐使用](#kv-get-API-N)
-    * [读](#kv-get-API-N)
-        * [get](#kv-get-API-N)
-        * [getBatch](#kv-getbatch-API-N)
-    * [写](#kv-set-API-N)
-        * [setString](#kv-set-API-N)
-        * [setBatch](#kv-setbatch-API-N)
-        * [delString](#kv-del-API-N) 
-        * [updateStringEx](#kv-update-API-N)
+### 模块定义
 
+kkv模块 HUYACustomInfo
+mkey: uid, string 
+ukey: biz, int 
+value: 
+    - name, string 
+    - address, string 
+    - number, long 
 
-* [key-value@DCacheCenter.h 逐渐废弃](#kv-get)
-  * [读](#kv-get)
-    * [get](#kv-get)
-    * [getBatch](#kv-getbatch)
-    * [Scan](#kv-scan)
-  * [写](#kv-erase)
-    * [erase](#kv-erase)
-    * [set](#kv-set)
-    * [setBatch](#kv-setbatch)
-    * [modify](#kv-modify)
-    * [drop](#kv-drop)
-    * [dropBatch](#kv-dropbatch)
-    * [updateStringEx](#kv-update)
- 
-
-# 初始化客户端 <a id="initClient"></a>
-DCacheClientSDK使用协程连接服务端，在协程环境不可用时，将自动切换为同步接口。我们使用DCacheSDK，通常将其设置为全局单例。如下所示：
+### 初始化
 ```c++
-//推荐这种初始化方式
-class DCacheOpt: public taf::TC_Singleton<DCacheOpt>
-{c
-public:
-    void init( const CommunicatorPtr &_comm ){
-        TC_Config tConf;
-        tConf.parseFile( ServerConfig::BasePath + ServerConfig::ServerName + ".conf" );
-        string module_name = tConf.get( "/main/dcache/bizname/<module_name>" );
-        string proxy_name = tConf.get( "/main/dcache/bizname/<proxy_name>" );
-        client.init(_comm,proxy_name,module_name);
-        //可以设置超时时间，第一个为同步超时时间，第二个为异步超时时间，为0则为默认超时时间,taf_v3有效
-        //client.init(_comm,proxy_name,module_name,timeout);
-    }
-    DCacheAPI_N<string> &getClient(){
-        return client;
-    }
-public:
-    DCacheAPI_N<string> client;//模版类型为key
-};
+第一步：修改makefile引入DCache客户端头文件 
+include /home/tafjce/DCache/API/dcacheclient.mk
 
-//这种声明方式也是可以的，注意如果有两个DCacheAPI_N key同为long的话就比较危险了。因为实际上他们是同个单例实例！
-typedef taf::TC_Singleton<DCacheAPI_N<long>> DCacheAPI_Singleton;
+第二步：初始化DCache客户端 
+1. XXXServer.h 声明DCache客户端变量
+#include "DCacheAPI_N.h"
+// <std::string>表示该dcache模块的mkey是string类型
+DCache::DCacheAPI_N<std::string> m_dcaheCustomInfo;
 
-//使用方法：在Server::initialize() 添加如下初始化代码
-DCacheOpt::getInstance()->init(Application::getCommunicator());
+2. XXXServer.cpp 初始化DCache客户端变量
+// TAF配置文件类
+TC_Config m_configFile; 
+// TAF配置中获取dcache模块proxy
+const string& proxyName = m_configFile.get( "/obj/huyavideo-cp-dcache/<proxy-name>", "DCache.HUYADataProxyServer.ProxyObj");
+// TAF配置中获取dcache模块module
+const string& moduleName = m_configFile.get( "/obj/huyavideo-cp-dcache/<module-name>", "HUYACustomInfo");
+m_dcaheCustomInfo.init(Application::getCommunicator(), proxyName, moduleName, 3000/*timeout*/);
 
 
-//其他地方这样调用
-DCacheOpt::getInstance()->getClient().API(args...)
+3. DCache_Struct宏
+//DCache_Struct是一个宏，它会创建以第一个参数为名称的命名空间
+//创建名称为DCACHE_Hash的命名空间，timestamp、count、xxx为uk和value字段
+// DCache_Struct(DCACHE_Hash,timestamp,count,xxx)
+//创建名称为DCACHE_Rank的命名空间，uid、sex、age为uk和value字段
+// DCache_Struct(DCACHE_Rank,uid,sex,age)
+// 具体：创建名称为Hash的命名空间，biz为ukey和value字段:name, address, number
+DCache_Struct(DCACHE_CustomInfo, biz, name, address, number);
 
-```
-### 使用DCacheCenter <a id="initDCacheCenter"></a>
-初始化：
-```c++
-TC_Config tConf;
-tConf.parseFile( ServerConfig::BasePath + ServerConfig::ServerName + ".conf" );
-string module_name = tConf.get( "/main/dcache/bizname/<module_name>" );
-string proxy_name = tConf.get( "/main/dcache/bizname/<proxy_name>" );
-DCacheCenter<std::string, HUYA::TestJceStruct> _dcache;
-int timeout = 3000;
-_dcache.init(comm, proxy_name, module_name, timeout);
+//使用：
+DBuilder builder;
+// 更新操作:设置map<string, UpdateValue>
+builder.set(DCACHE_CustomInfo::name="tuomasi").set(DCACHE_CustomInfo::number=7758258);
 
-//get
-HUYA::TestJceStruct value;
-std::string key = "key";
-_dcache.get(key, value);
-```
+m_dcaheCustomInfo.updateAtom(key, builder.updateValues, builder.vConds);
 
-# <a id="ignore_uk"></a>二期模块kv模式(使用IgnoreUKey)
-在使用二期模块时，如果希望每个主键下只有一条数据，就像kv一样，不去理会ukey使用的时候，可以使用setIgnoreUKey()。使用方法：
-```
-    //在client初始化时调用setIgnoreUKey
-    client.init(_comm,proxy_name,module_name,timeout);
-    client.setIgnoreUKey("ukey_nouseage");
-
-    //在调用了setIgnoreUKey("ukey_nouseage");之后 调用DCache接口时就当做没有ukey字段去使用就可以了 such as:
-    DBuilder builder;
-    builder.set(Hash::value=2341); //只用设置value字段，不管ukey
-    DCacheOpt::getInstance()->getClient().insert("242354",builder.updateValues,{});
-```
-
-
-# <a id="dcache_struct"></a> 使用DCache_Struct和DBuilder
-在许多DCache API中，比如updateAtom，在填入参数的时候常常会需要写入map<string, UpdateValue>和vector<Condition>等类型，这些类型的构造会对用户使用时带来一定程度困扰，所以我们引入了DCache_Struct和DBuilder来方便用户使用DCache API.\
-使用方法：
-```c++
-    //DCache_Struct是一个宏，它会创建以第一个参数为名称的命名空间
-    //创建名称为Hash的命名空间，timestamp、count、xxx为uk和value字段
-    DCache_Struct(Hash,timestamp,count,xxx)
-    //创建名称为Rank的命名空间，uid、sex、age为uk和value字段
-    DCache_Struct(Rank,uid,sex,age)
-    
-    //使用：
-    DBuilder builder;
-    //设置map<string, UpdateValue>
-    builder.set(Hash::xxx="abcde").set(Hash::count="1");
-    //设置vector<Condition>
-    builder.add(Hash::timestamp=="1234567");
-    
-    DCacheOpt::getInstance()->getClient().updateAtom(key,builder.updateValues,builder.vConds);
 ```
 **DCache_Struct里面的字段可以包括mk, uk, value的字段**
 
-# <a id="lru_client"></a>初始化带LRU的客户端
-我们为一期KV，二期KKV实现了LRU客户端缓存，在Key有明显热点集中的大QPS访问情形中，应该使用LRU技术来降低延迟以及提高QPS，同时减轻了DCache压力。
-使用LRU缓存也非常简单，只需要更换模版即可:
-请注意，需要在配置文件中，添加如下配置：
-
-
-```
-<main>
-<lru>
-    # 本Lru实例会缓存1000*100个key，超过则启用淘汰，每个key 5秒后即超时
-  	lruSize=1000
-  	expireTime=5
-  	hashNum=100
-</lru>
-<TokenBucket>
-    # 放入LRU 前，先看看此KEY 是否‘过热’
-    # 即在brustCap=5(令牌桶最大只能容纳5个令牌),bucketRate=5(每秒放回去5个令牌)
-    # 则DCacheClient 在该key突发请求速率为 5次/s，平均请求速率为 5次/s以内，不会走LRU逻辑，否则放入LRU缓存
-  	lruSize=1000
-  	bucketCap=5
-  	bucketRate=5
-  	hashNum=100
-</TokenBucket>
-</main>
-```
-
-在使用一期DCacheCenterWithLRU时，需要手动初始化Lru代码（兼容性考虑），调用`initLRUConfig`即可（必须增加上文配置项，否则assert）。
-
-```
-TC_Config tConf;
-tConf.parseFile( ServerConfig::BasePath + ServerConfig::ServerName + ".conf" );
-string module_name = tConf.get( "/main/dcache/bizname/<module_name>" );
-string proxy_name = tConf.get( "/main/dcache/bizname/<proxy_name>" );
-DCacheCenter<std::string, HUYA::TestJceStruct> _dcache;
-int timeout = 3000;
-_dcache.init(comm, proxy_name, module_name, timeout);
-
-//需要手动调用下这个接口
-_dcache.initLRUConfig();
-//下面的不用了
-<!--{-->
-<!--    int lruSize = taf::TC_Common::strto<int>( conf.get( "/main/lru/<lruSize>", "0" ) );-->
-<!--    int expireTime = taf::TC_Common::strto<int>( conf.get( "/main/lru/<expireTime>", "0" ) );-->
-<!--    int hashNum = taf::TC_Common::strto<int>( conf.get( "/main/lru/<hashNum>", "0" ) );-->
-<!--    LOG->debug() << "init lru config,lruSize:" << lruSize << ",expireTime:" << expireTime << ",hashNum:" << hashNum << endl;-->
-    
-<!--    assert( lruSize != 0 );-->
-<!--    assert( hashNum != 0 );-->
-<!--    //CacheWithHash 不可用运行时调用，线程不安全-->
-<!--    //Cache 可以随便调用，线程安全-->
-<!--    _dcache.initLRU( lruSize, expireTime, hashNum );-->
-<!--}-->
-<!--{-->
-<!--    int lruSize = taf::TC_Common::strto<int>( conf.get( "/main/TokenBucket/<lruSize>", "0" ) );-->
-<!--    int bucketCap = taf::TC_Common::strto<int>( conf.get( "/main/TokenBucket/<bucketCap>", "0" ) );-->
-<!--    int bucketRate = taf::TC_Common::strto<int>( conf.get( "/main/TokenBucket/<bucketRate>", "0" ) );-->
-<!--    int hashNum = taf::TC_Common::strto<int>( conf.get( "/main/TokenBucket/<hashNum>", "0" ) );-->
-<!--    LOG->debug() << "init bucketToken config,lruSize:" << lruSize-->
-<!--                 << ",bucketCap:" << bucketCap << ",bucketRate:"-->
-<!--                 << bucketRate << ",hashNum:" << hashNum << endl;-->
-<!--    _dcache.initBucket( lruSize, bucketCap, bucketRate, hashNum );-->
-<!--}-->
-
-        
-//get
-HUYA::TestJceStruct value;
-std::string key = "key";
-_dcache.get(key, value);
-
-
-```
-
-在使用二期DCacheAPIWithLRU_N时，`LRU KKV `初始化代码(必须增加上文配置项，否则assert):
-```c++
-class DCacheOpt: public taf::TC_Singleton<DCacheOpt>
-{
-public:
-    void init( const CommunicatorPtr &_comm ){
-        TC_Config tConf;
-        tConf.parseFile( ServerConfig::BasePath + ServerConfig::ServerName + ".conf" );
-        string module_name = tConf.get( "/main/dcache/bizname/<module_name>" );
-        string proxy_name = tConf.get( "/main/dcache/bizname/<proxy_name>" );
-        client.init(_comm,proxy_name,module_name);
-        //DCacheAPIWithLRU_N构造函数已调用initLRUConfig，下面代码不用了
-        //client.initLRU(100,5,10);
-        //client.initBucket(100,10,2,10);
-    }
-    DCacheAPIWithLRU_N<string> &getClient(){
-        return client;
-    }
-public:
-    DCacheAPIWithLRU_N<string> client;// 这是LRU版本
-};
-```
-
-### <a id="lru_principle"></a> 理解LRU 与令牌桶
-我们使用LRU实现客户端缓存，在数据集中突发访问场景，可以有效降低延迟，提高QPS，但对于海量数据（keys）以及有限的客户端内存限制下，我们应该首先判断KEY是否应该进入LRU缓存，对此，使用令牌桶来测试该key的速率：
-[令牌桶原理](https://henix.github.io/feeds/weixin.sogou.zhoudaobiji/2016-09-10-1000000002.html)。\
-在DCacheClient配置文件中，有几个重要配置项`bucketCap`,`bucketRate`:
-
-放入LRU 前，先看看此KEY 是否‘过热’，即是否在brustCap=5(令牌桶最大只能容纳5个令牌),bucketRate=5(每秒放回去5个令牌)条件内，则DCacheClient 在该key突发请求速率为 5次/s，平均请求速率为 5次/s以内，不会走LRU逻辑，否则放入LRU缓存.
-
-
-
-
-
-# <a id="retCode"></a>现有返回值，以及含义：
-
-返回值字符串 | 含义|返回数值
------------------- |------------------ | ----------------
-ET_TAF_ERROR_JCE_DECODEERR |对应taf异常：JCESERVERDECODEERR -1 | -1001
-ET_TAF_ERROR_JCE_ENCODEERR |对应taf异常：JCESERVERENCODEERR -2 | -1002
-ET_TAF_ERROR_JCE_NOFUNCERR |对应taf异常：JCESERVERNOFUNCERR -3 | -1003
-ET_TAF_ERROR_JCE_NOSERVANTERR |对应taf异常：JCESERVERNOSERVANTERR -4 | -1004
-ET_TAF_ERROR_JCE_RESETGRID |对应taf异常：JCESERVERRESETGRID -5 | -1005
-ET_TAF_ERROR_JCE_QUEUETIMEOUT |对应taf异常：JCESERVERQUEUETIMEOUT -6 | -1006
-ET_TAF_ERROR_JCE_ASYNCCALLTIMEOUT |对应taf异常：JCEASYNCCALLTIMEOUT -7 | -1007
-ET_TAF_ERROR_JCE_PROXYCONNECTERR |对应taf异常：JCEPROXYCONNECTERR -8 | -1008
-ET_TAF_ERROR_JCE_OVERLOAD |对应taf异常：JCESERVEROVERLOAD -9 | -1009
-ET_TAF_ERROR_JCE_ADAPTERNULL |对应taf异常：JCEADAPTERNULL -10 | -1010
-ET_TAF_ERROR_JCE_UNKNOWNERR |对应taf异常：JCESERVERUNKNOWNERR -99 | -1099
- ET_UUID_DUPLICATED | 该请求为重试请求(uuid已存在) 不会重复更新数据 | -41
- ET_EXCEED_LIMIT | 输入参数超过限制错误 | -38
- ET_ERASE_DIRTY_ERR	| 不允许使用该接口删除脏数据 | -35
- ET_PARAM_LIMIT_VALUE_ERR | 条件集合的某个元素的limit属性值填写错误 | -34
- ET_PARAM_UPDATE_UKEY_ERR | 更新字段包含了联合字段 | -33
- ET_PARAM_OP_ERR	| op错误，只支持SET | -31
- ET_PARAM_NOT_EXIST | 字段不存在 | -30
- ET_PARAM_DIGITAL_ERR | 字段错误，例如值为数字类型的字段包含了非数字字符 | -29
- ET_PARAM_TOO_LONG | 字段大小超过限制 | -28
- ET_PARAM_MISSING | 待写入数据未包含全部联合字段 | -27
- ET_PARAM_REDUNDANT	| 字段重复 | -26
- ET_CACHE_ERR | 缓存错误 | -25
- ET_DB_ERR | 数据库读取错误 | -24
- ET_READ_ONLY |cache只读，一般是在主备切换过程中产生|-23
- ET_DATA_TOO_MUCH | 数据量过大 | -22
- ET_MEM_FULL | 内存满 | -21
- ET_PARTIAL_FAIL | 表示部分数据insert失败 | -16
- ET_DATA_VER_MISMATCH | 版本不一致 | -15
- ET_INPUT_PARAM_ERROR | 参数错误，例如key为空 | -12
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_DATA_EXIST | 数据已存在，禁止insert | -10
- ET_SERVER_TYPE_ERR | SLAVE状态下不提供接口服务 | -9
- ET_NO_DATA | 数据不存在 | -6
- ET_KEY_AREA_ERR | 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR | 系统异常 | -1
- ET_SUCC | 读取数据成功 | 0
- 更新的行数| getMainKeyCount/select/updateOrInsertNotAtom| >=0
- 更新的行数| updateAtom/updateAtomFetch/remList成功 | >=0
  
- # <a id="SelectResult"></a> SelectResult类型
+## SelectResult类型
  ```C++
  
  /**
@@ -440,9 +158,11 @@ ET_TAF_ERROR_JCE_UNKNOWNERR |对应taf异常：JCESERVERUNKNOWNERR -99 | -1099
         SelectRecord operator[]( size_t i ) throw( DCacheClientException );
     };
  ```
- [↑返回标题↑](#header)
 
-# <a id="getmainkeycount"></a> getMainKeyCount
+
+## k-k-row,list,set,zset模块通用接口
+
+### getMainKeyCount
 ```C++
 int getMainKeyCount( const K &sMainIndex, bool bCheckExpire = false )
 ```
@@ -454,18 +174,8 @@ int getMainKeyCount( const K &sMainIndex, bool bCheckExpire = false )
 sMainIndex 主键
 bCheckExpire 为false时获取的数据记录总数会包含已过期的数据，设为true可过滤已过期的数据，复杂度由O(1)->O(N)
 ```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- 其他值(大于等于0)|主键下的记录总数 | ≥0
- [↑返回标题↑](#header)
 
- 
-
-# <a id="getmainkeycountbatch"></a> getMainKeyCountBatch
+### getMainKeyCountBatch
 ```C++
 template<typename KK>
 int getMainKeyCountBatch( const vector<KK> &vtMainKey, map<KK, int> &keyCount, bool bCheckExpire = false )
@@ -478,18 +188,8 @@ vtMainKey 主键
 keyCount 返回每个key对应的记录个数
 bCheckExpire 为false时获取的数据记录总数会包含已过期的数据，设为true可过滤已过期的数据，复杂度由O(1)->O(N)
 ```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 批量读取成功 | 0 
- [↑返回标题↑](#header)
- 
- 
- 
-# <a id="getallmainkey"></a> getMKAllMainKey
+
+### getMKAllMainKey
 ```C++
 int getMKAllMainKey( int index, int count, vector<string> &mainKey, bool &isEnd )
 ```
@@ -513,18 +213,8 @@ isEnd 是否还有数据（是否还有更多的桶，如果有，应该继续�
         }
     }
 ```  
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_INPUT_PARAM_ERROR | 参数错误，例如mainKey为空 | -12
- ET_MODULE_NAME_INVALID	| 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC	| 删除成功 | 0
- [↑返回标题↑](#header)
 
-
-
-# <a id="del"></a> del
+### del
 ```C++
 int del( const K &sMainIndex, const vector<DCache::Condition> &vtConds )
 ```
@@ -543,23 +233,8 @@ auto condition = {Rank::uid>100000,Rank::sex==1,Rank::age!=18};
 DCacheOpt::getInstance()->getClient().del(“mk”,condition);
 
 ```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARAM_LIMIT_VALUE_ERR | 条件集合的某个元素的limit属性值填写错误 | -34
- ET_PARAM_NOT_EXIST | 字段不存在 | -30
- ET_PARAM_REDUNDANT	| 字段重复 | -26
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR	| SLAVE状态下不提供接口服务 | -9
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID	| 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC	| 删除成功 | 0
- [↑返回标题↑](#header)
 
-
-
-# <a id="delbatch"></a> delBatch
+### delBatch
 ```C++
 int delBatch( const vector<DCache::DelCondition> &vtCond, map<taf::Int32, taf::Int32> &mRet )
 ```
@@ -605,21 +280,8 @@ mRet 键:批量请求中data的index，值:删除结果，大于等于0表示在
 
     
 ```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARAM_REDUNDANT | 字段重复或字段不存在 | -26
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR | SLAVE状态下不提供接口服务 | -9
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC	 | 批量删除操作完成 | 0
- [↑返回标题↑](#header)
 
-
-
-# <a id="erase"></a> erase
+### erase
 ```C++
 int erase( const K &sMainIndex )
 ```
@@ -628,21 +290,10 @@ int erase( const K &sMainIndex )
 ```
 sMainIndex 主键
 ```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_ERASE_DIRTY_ERR	| 不允许使用该接口删除脏数据 | -35
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR	| SLAVE状态下不提供接口服务 | -9
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID	| 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC	| 删除成功 | 0
- [↑返回标题↑](#header)
 
+## KKV模块
 
-
-# <a id="kkv-select"></a> select
+### select
 ```C++
 int select( const K &k, const vector<Field> &vtFields, const vector<Condition> &vtConds, SelectResult &result, bool totalCount = false )
 ```
@@ -704,25 +355,8 @@ if(iRet>0){ //有数据
 
 有人这么用，希望用来做CAS， 100%翻车， 用户说 以前一直没问题， 因为 在0 ~48 ， TC_Common::strto<int>  ===0，0就是CAS 失效，忽略版本了！！ ，但是49后，TC_Common::strto<int>  ===1 ，会报 version_mismatch ，
 应该使用` iCacheVersion = DCache::SelectResult::CastVersion(fields["@DataVer"]);`
-![image](https://note.youdao.com/yws/res/11241/CEB081A92C0246E8A468D7C6C98CCA53)
 
-
-
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARAM_NOT_EXIST	| 查询条件集合字段填写错误，无效字段 | -30
- ET_PARAM_REDUNDANT	| 查询条件集合有重复字段或无效字段 | -26
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_NO_DATA | 数据不存在 | -6
- 其他值(大于等于0)|记录条数，如果==0说明没有找到符合条件的数据，>0为记录条数，特别地，totalCount为true时，返回了mainkey下所有ukey的个数 | ≥0
- [↑返回标题↑](#header)
- 
- 
- 
-# <a id="kkv-selectBatch"></a> selectBatch
+### selectBatch
 ```C++
 int selectBatch( const vector<K> &vtMainKeys, const vector<Field> &vtFields, const vector<Condition> &vtConds, map<K, SelectResult> &mpKResults )
 ```
@@ -780,18 +414,8 @@ mpKResults 查询结果集合
 
 
 ```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARAM_LIMIT_VALUE_ERR	| 查询条件集合的某个元素的limit属性值填写错误 | -34
- ET_DATA_TOO_MUCH | 数据量过大 | -22
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 批量读取成功 | 0
- [↑返回标题↑](#header)
- 
-# <a id="kkv-selectBatchOr"></a> selectBatchOr
+
+### selectBatchOr
 ```C++
 int selectBatchOr( const vector<DCache::SelectBatchOrReq> &vtKey, vector<SelectResult>& vtResults, const map<string, string> &context = TAF_CONTEXT() )
 int selectBatchOr( const MultiRowBuilder& builder, vector<SelectResult>& vtResults, const map<string, string> &context = TAF_CONTEXT() )
@@ -874,18 +498,8 @@ struct SelectBatchOrReq {
 
 
 ```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARAM_LIMIT_VALUE_ERR	| 查询条件集合的某个元素的limit属性值填写错误 | -34
- ET_DATA_TOO_MUCH | 数据量过大 | -22
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 批量读取成功 | 0
- [↑返回标题↑](#header)
 
-# <a id="kkv-scanmk"></a> scanMK
+### scanMK
 ```C++
 int scanMK( int index, int count, vector<map<std::string, std::string>> &allVtData, bool &isEnd )
 ```
@@ -927,16 +541,7 @@ void testScanMK()
 }
 ```
 
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_INPUT_PARAM_ERROR | 参数错误，例如mainKey为空 | -12
- ET_MODULE_NAME_INVALID	| 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC	| 写入成功 | 0
- [↑返回标题↑](#header)
-
-# <a id="kkv-scanmkfromdb"></a> scanMKFromDB
+### scanMKFromDB
 ```C++
 int scanMKFromDB(const string& servant_name, const string & main_key, int count, vector<map<std::string, std::string>> &allVtData,
                 bool &isEnd, string & next_main_key)
@@ -979,19 +584,7 @@ void testScanMKFromDB()
 }
 ```
 
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_R_DB_ERR	| rocksDB出错 | -4
- eDbJceDecodeError | JCE解码失败 | -3
- ET_R_ERR | rocksDB 迭代失败 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC	| 写入成功 | 0
-
-[↑返回标题↑](#header)
-
-
-# <a id="kkv-insert"></a> insert
+### insert
 ```C++
 int insert( const K &sMainKey, const map<string, UpdateValue> &mpUpdateValues, bool bReplace = false, bool bDirty = true, uint8_t iVer = 0, taf::Int32 tExpire = 0 )
 ```
@@ -1031,29 +624,7 @@ DCacheOpt::getInstance()->getClient().insert("242354",builder.updateValues,{});
 
 ```
 
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARAM_OP_ERR	| op错误，只支持SET | -31
- ET_PARAM_NOT_EXIST | 字段不存在 | -30
- ET_PARAM_DIGITAL_ERR | 字段错误，例如值为数字类型的字段包含了非数字字符 | -29
- ET_PARAM_TOO_LONG | 字段大小超过限制 | -28
- ET_PARAM_MISSING | 待写入数据未包含全部联合字段 | -27
- ET_MEM_FULL	| 内存满 | -21
- ET_DATA_VER_MISMATCH | 版本不一致 | -15
- ET_INPUT_PARAM_ERROR | 参数错误，例如mainKey为空 | -12
- ET_FORBID_OPT | 正在迁移，禁止操作 |  -11
- ET_DATA_EXIST | 数据已存在，禁止insert | -10
- ET_SERVER_TYPE_ERR	| SLAVE状态下不提供接口服务 | -9
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID	| 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC	| 写入成功 | 0
- [↑返回标题↑](#header)
-
-
-
-# <a id="kkv-insertbatch"></a> insertBatch
+### insertBatch
 ```C++
 int insertBatch( const InsertBatchBuilder &builder, map<int, int> &mpFailReasons )
 //builder接口为：
@@ -1092,18 +663,7 @@ mpFailReasons 记录插入失败的原因，key为记录在vtKeyValues中的下�
     
 ```
 
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARTIAL_FAIL | 表示部分数据insert失败 | -16
- ET_SERVER_TYPE_ERR	| SLAVE状态下不提供接口服务 | -9
- ET_MODULE_NAME_INVALID	| 模块名错误 | -2
- ET_SUCC	 | 批量写操作完成 | 0
- [↑返回标题↑](#header)
-
-
-
-# <a id="refreshexpiretime"></a> refreshExpiretime
+### refreshExpiretime
 ```C++
 int refreshExpiretime(const string& mainKey, const vector<Condition>& vtCond, int expireTimeSecond)
 ```
@@ -1114,22 +674,8 @@ mainKey 主键
 vtCond 查询条件集合，除主Key外的其他字段
 expireTimeSecond 记录过期时间(秒)，为相对时间
 ```
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARAM_NOT_EXIST | 字段不存在 | -30
- ET_PARAM_TOO_LONG | 字段大小超过限制 | -28
- ET_PARAM_REDUNDANT	| 字段重复 | -26
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR	| SLAVE状态下不提供接口服务 | -9
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID	| 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC	| 操作成功 | 0
- [↑返回标题↑](#header)
- 
 
-
-# <a id="kkv-update"></a> updateOrInsertNotAtom
+### updateOrInsertNotAtom
 ```C++
 int updateOrInsertNotAtom( const K &sMainIndex, const map<string, UpdateValue> &mpUpdateValues, const vector<Condition> &vtConds, bool bDirty = true, uint8_t iVer = 0, time_t tExpire = 0, bool bInsert = false )
 ```
@@ -1144,28 +690,8 @@ iVer 版本号
 tExpire 过期时间，为相对时间
 bInsert 如果要修改的唯一记录不存在且insert为true时则插入一条数据
 ``` 
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARAM_LIMIT_VALUE_ERR | 	更新条件集合的某个元素的limit属性值填写错误 | -34
- ET_PARAM_UPDATE_UKEY_ERR | 更新字段包含了联合字段 | -33
- ET_PARAM_NOT_EXIST | 字段不存在 | -30
- ET_PARAM_DIGITAL_ERR | 字段错误，例如值为数字类型的字段包含了非数字字符 |-29
- ET_PARAM_TOO_LONG | 字段大小超过限制 | -28
- ET_PARAM_REDUNDANT	| 更新条件中的联合字段重复填写 | -26
- ET_DATA_VER_MISMATCH | 版本不一致 | -15
- ET_INPUT_PARAM_ERROR | 参数错误，例如mainKey为空 | -12
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR	| SLAVE状态下不提供接口服务 | -9
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID	| 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- 其他值(大于等于0)	|更新成功，且此值表示更新操作影响的记录条数 | ≥0
- [↑返回标题↑](#header)
 
-
-
-# <a id="kkv-updateatom"></a> updateAtom
+### updateAtom
 ```C++
 int updateAtom( const K &sMainIndex, const map<string, UpdateValue> &mpUpdateValues, const vector<Condition> &vtConds, bool bDirty = true, time_t tExpire = 0 )
 ```
@@ -1196,29 +722,8 @@ tExpire 过期时间，为相对时间
     // retry iRet = ET_UUID_DUPLICATED
     iRet = DCacheOpt::getInstance()->getClient().updateAtom(mainKey,updateValue,condition);
 ```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_UUID_DUPLICATED | 该请求为重复请求(uuid已存在) | -41
- ET_PARAM_LIMIT_VALUE_ERR | 	更新条件集合的某个元素的limit属性值填写错误 | -34
- ET_PARAM_UPDATE_UKEY_ERR | 更新字段包含了联合字段 | -33
- ET_PARAM_NOT_EXIST | 字段不存在 | -30
- ET_PARAM_DIGITAL_ERR | 字段错误，例如值为数字类型的字段包含了非数字字符 | -29
- ET_PARAM_TOO_LONG | 字段大小超过限制 | -28
- ET_PARAM_REDUNDANT	| 更新条件中的联合字段重复填写 | -26
- ET_DATA_VER_MISMATCH | 版本不一致 | -15
- ET_INPUT_PARAM_ERROR | 参数错误，例如mainKey为空 | -12
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR	| SLAVE状态下不提供接口服务 | -9
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID	| 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- 其他值(大于等于0)	|更新成功，且此值表示更新操作影响的记录条数 | ≥0
- [↑返回标题↑](#header)
- 
- 
 
-# <a id="kkv-updateatomfetch"></a> updateAtomFetch
+### updateAtomFetch
 ```C++
 int updateAtomFetch( const K &sMainIndex, const map<string, UpdateValue> &mpUpdateValues, const vector<Condition> &vtConds, SelectResult &result, bool getOldValue = false, bool bDirty = true, time_t tExpire = 0 )
 ```
@@ -1267,28 +772,7 @@ result 包含：
     iRet = DCacheOpt::getInstance()->getClient().updateAtomFetch( mainKey, builder.updateValues, {}, fetchResult );
 ```
 
-
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_UUID_DUPLICATED | 该请求为重复请求(uuid已存在) | -41
- ET_PARAM_LIMIT_VALUE_ERR | 	更新条件集合的某个元素的limit属性值填写错误 | -34
- ET_PARAM_UPDATE_UKEY_ERR | 更新字段包含了联合字段 | -33
- ET_PARAM_NOT_EXIST | 字段不存在 | -30
- ET_PARAM_DIGITAL_ERR | 字段错误，例如值为数字类型的字段包含了非数字字符 | -29
- ET_PARAM_TOO_LONG | 字段大小超过限制 | -28
- ET_PARAM_MISSING | 字段缺失 | -27
- ET_PARAM_REDUNDANT	| 更新条件中的联合字段重复填写 | -26
- ET_DATA_VER_MISMATCH | 版本不一致 | -15
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR	| SLAVE状态下不提供接口服务 | -9
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID	| 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- 其他值(大于等于0)	|更新成功，且此值表示更新操作影响的记录条数 | ≥0
- [↑返回标题↑](#header)
-
-# <a id="kkv-updateatomfetch_v2"></a> updateAtomFetch_v2
+### updateAtomFetch_v2
 ```C++
 int updateAtomFetch_v2( const K &sMainIndex, const map<string, UpdateValue> &mpUpdateValues, const vector<Condition> &vtConds, SelectResult &result, bool getOldValue = false, bool bDirty = true, bool bInsert = true, time_t tExpire = 0 )
 ```
@@ -1329,29 +813,7 @@ tExpire 过期时间，为相对时间
     iRet = DCacheOpt::getInstance()->getClient().updateAtomFetch( mainKey, builder.updateValues, {}, fetchResult );
 ```
 
-
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_UUID_DUPLICATED | 该请求为重复请求(uuid已存在) | -41
- ET_PARAM_LIMIT_VALUE_ERR | 	更新条件集合的某个元素的limit属性值填写错误 | -34
- ET_PARAM_UPDATE_UKEY_ERR | 更新字段包含了联合字段 | -33
- ET_PARAM_NOT_EXIST | 字段不存在 | -30
- ET_PARAM_DIGITAL_ERR | 字段错误，例如值为数字类型的字段包含了非数字字符 | -29
- ET_PARAM_TOO_LONG | 字段大小超过限制 | -28
- ET_PARAM_MISSING | 字段缺失 | -27
- ET_PARAM_REDUNDANT	| 更新条件中的联合字段重复填写 | -26
- ET_DATA_VER_MISMATCH | 版本不一致 | -15
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR	| SLAVE状态下不提供接口服务 | -9
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID	| 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- 其他值(大于等于0)	|更新成功，且此值表示更新操作影响的记录条数 | ≥0
- [↑返回标题↑](#header)
-
-
-# <a id="kkv-updatefetchbatch"></a> updateFetchBatch
+### updateFetchBatch
 ```C++
 int updateFetchBatch( const vector<UpdateAtomFetchBatchParam> &updateParam, vector<SelectResult>& vtResults );
 struct UpdateAtomFetchBatchParam {
@@ -1407,542 +869,14 @@ vtResults 结果数据集合，不一定和传入顺序一致，同一mk顺序�
     }
 ```
 
-
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_ONEKEY_EMPTY | 单个 or batch 接口中，入参，或者入参序列化后的结果 为empty string | -39
- ET_EXCEED_LIMIT | mk的数量超出限制 | -38
- ET_PARAM_LIMIT_VALUE_ERR | 	更新条件集合的某个元素的limit属性值填写错误 | -34
- ET_PARAM_UPDATE_UKEY_ERR | 更新字段包含了联合字段 | -33
- ET_PARAM_NOT_EXIST | 字段不存在 | -30
- ET_PARAM_DIGITAL_ERR | 字段错误，例如值为数字类型的字段包含了非数字字符 | -29
- ET_PARAM_MISSING | 字段缺失 | -27
- ET_PARAM_REDUNDANT	| 更新条件中的联合字段重复填写 | -26
- ET_PARTIAL_FAIL | 部分错误 | -16
- ET_DATA_VER_MISMATCH | 版本不一致 | -15
- ET_INPUT_PARAM_ERROR | 传入的mainkey组为空 | -12
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR	| SLAVE状态下不提供接口服务 | -9
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_KEY_INVALID | 无法定位到相应节点 | -3
- ET_MODULE_NAME_INVALID	| 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 成功 | =0
- [↑返回标题↑](#header)
+## ZSet模块
  
- 
- # <a id="kkv-callFunction"></a> callFunction (Discard)
-```C++
-int callFunction(const string& functionName,  const K& mainKey,
-                         const vector<Field>& vtFields, const vector<Condition>& vtCond, const map<string, UpdateValue>& mpValue,
-                         const map<string, string>& inParam, SelectResult &result, map<string, string>& outParam) 
-```
-**功能：** 调用ServerLess脚本 \
-**参数：**  
-```
-functionName 函数名
-
-字段 vtFields
-vtConds 查找数据的条件
-mpValue 传入的函数，对于ServerLess仅透传
-inParam 传入的函数，对于ServerLess仅透传
-result 返回的数据。由DCache查好数据，传入引用到ServerLess脚本，如果不需要由脚本清空
-outParam 回传的函数，仅回传
-```
-
-
-### 介绍：
-- ServerLess介绍 http://km.huya.com/index.php?app=group&ac=topic&id=314
-- 其中在服务+中使用脚本代码不用特别关注，这部分是DCacheServer的工作
-
-### 开发流程
-1. 跟之前一样的申请流程申请DCache, 其中要声明使用CallFunction接口，并提供你定好的脚本名
-2. 写好DCache-ServerLess的脚本， 可以参考其他同事的脚本，也可以参考sl_dcache_default.cc（用scripttool下载）
-3. 使用scripttool上传脚本
-4. 编写业务服务器，调用相应的模块的DCache接口, 建议使用 callFunctionWithVer接口，由调用者指定脚本的版本号即可
-5. 测试通过
-6. 找运维同学将DCache发布到线上
-
-
-### 实际调用流程
-1. 请求 业务服务器 -> DCacheAPI -> Proxy -> DCache按条件查找数据 -> 你的ServerLess脚本 -> （如果需要）DCache提供给ServerLess的接口
-2. 回包 你的ServerLess脚本 -> DCache -> Proxy -> DCacheAPI -> 业务服务器
-
-
-### DCache提供给ServerLess的接口
-使用scripttool下载 mkcacheserver_ass_export.h 可以看到所有的接口
-
-提供的功能有:insert/update/del/refershtime等接口
- 
-目前的返回码跟DCacheAPI返回码基本是一样的。不一样的是，Update成功也是返回ET_SUCC
-
-### 如何写脚本
-脚本的函数需要固定的参数，脚本名跟函数名自定。
-
-```c++
-/**
- *功能：测试ServerLess功能, 样例, 注意原型不能更改
- *参数说明：
- *  content：当前DCache所处的上下文，回传参数，由于ServerLess传void指针出错，
- *           请将content转为void*传入JMemHashXXX
- *
- *  mk：     主key
- *  mpValue: 更新的结构, 更新的结构进来前会有判断，跟普通update类似，
- *           只能传已经存在的field, 不能传ukey/mainkey等
- *
- *  inParam:    额外转入的参数，做进一步控制用, 如需要复合结构请使用JCE封装
- *  vtData： 根椐客户端传过来的vtCond查询到的数据，此结果会回传给客户端, 如果不需要返回给客户端，需要调用clear清理数据
- *  outParam:    额外转回的参数，丰富返回结果, 如需要复合结构请使用JCE封装 
- *  getRet： 根椐vtCond查询数据时的结果, 一般情况下不需要使用
- *@return int, 
- *  返回给客户端的ret值，由脚本来控制
- */
- 
-
-int test_ServerLess(uint64_t content, const std::string& mk, 
-                    const std::map<std::string, DCache::UpdateValue>& mpValue,
-                    const std::map<std::string, std::string>& inParam,
-                    std::vector<std::map<std::string, std::string> >& vtData, 
-                    std::map<std::string, std::string>& outParam, int getRet) {
-                    vtData.clear();
-                    return ET_SUCC;
-}
-
-```
-
-#### 警告
-vtData： 根椐客户端传过来的vtCond查询到的数据，此结果会回传给客户端, 如果不需要返回给客户端，需要调用clear清理数据
-
-由于这个问题已经出过事故，所以每个写脚本，特别是统计脚本的人注意
-
-事故： 由于之前没有郑重沟通过这个事情，useronlinestate 统计在线人数时没有清除vtData, 导致包过大产生一系列错误
-
-####  getret参考列表
-```
-@return int:
-TC_Multi_HashMap_Malloc::RT_NO_DATA: 没有数据
-TC_Multi_HashMap_Malloc::RT_READONLY: 只读模式
-TC_Multi_HashMap_Malloc::RT_ONLY_KEY:只有Key
-TC_Multi_HashMap_Malloc::RT_OK:获取数据成功
-TC_Multi_HashMap_Malloc::RT_LOAD_DATA_ERR: load数据失败
-其他返回值: 错误
-
-enum 
-    {    
-        RT_OK                   = 0,    //成功
-        RT_DIRTY_DATA           = 1,    //脏数据
-        RT_NO_DATA              = 2,    //没有数据
-        RT_NEED_SYNC            = 3,    //需要回写
-        RT_NONEED_SYNC          = 4,    //不需要回写
-        RT_ERASE_OK             = 5,    //淘汰数据成功
-        RT_READONLY             = 6,    //map只读
-        RT_NO_MEMORY            = 7,    //内存不够
-        RT_ONLY_KEY             = 8,    //只有Key, 没有Value
-        RT_NEED_BACKUP          = 9,    //需要备份
-        RT_NO_GET               = 10,   //没有GET过
-        RT_DATA_VER_MISMATCH    = 11,   //写入数据版本不匹配
-        RT_PART_DATA            = 12,   //主key数据不完整
-        RT_DATA_EXIST           = 13,   //设置OnlyKey时的返回，表示实际上有数据
-        RT_DATA_EXPIRED         = 14,   //数据已过期 
-        RT_DATA_DEL             = 15,   //数据已删除
-
-        ////////////////////////2018年12月20日 12:17:31 以后添加返回码，都写负数/////////////////////////////////////////
-        RT_JUDGE_NODATA         = -50,  //用在updateFetch，但是目前客户端返回的是0
-        RT_DECODE_ERR           = -1,   //解析错误
-        RT_EXCEPTION_ERR        = -2,   //异常
-        RT_LOAD_DATA_ERR        = -3,   //加载数据异常
-        RT_VERSION_MISMATCH_ERR = -4,   //版本不一致
-        RT_DUMP_FILE_ERR        = -5,   //dump到文件失败
-        RT_LOAD_FILE_ERR        = -6,   //load文件到内存失败
-        RT_NOTALL_ERR           = -7,   //没有复制完全
-        RT_NOT_FOUND_FUNC       = -8,
-    };   
-```
-
-#### 返回值
-DCache与ServerLess共用一个返回值。建议一般情况下返回ET_SUCC, 
-错误情况需要传回返回码请与DCache系统返回码区分开来，比如使用-10000代表脚本的某种错误
-
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC	|成功 | 0
- [↑返回标题↑](#header)
-
-```C++
-int callFunction(const string& functionName, const K& mainKey,
-                         const vector<Field>& vtFields, const vector<Condition>& vtCond, const map<string, UpdateValue>& mpValue,
-                         const map<string, string>& inParam, SelectResult &result, map<string, string>& outParam) 
-```
-**功能：** 调用ServerLess脚本 \
-**参数：**  
-```
-functionName 函数名
-字段 vtFields
-vtConds 查找数据的条件
-mpValue 传入的函数，对于ServerLess仅透传
-inParam 传入的函数，对于ServerLess仅透传
-result 返回的数据。由DCache查好数据，传入引用到ServerLess脚本，如果不需要由脚本清空
-outParam 回传的函数，仅回传
-```
-
-
-
-# <a id="kkv-callFunctionWithVer"></a> callFunctionWithVer
-```C++
-int callFunctionWithVer(const string& functionName, int functionVer, const K& mainKey,
-                         const vector<Field>& vtFields, const vector<Condition>& vtCond, const map<string, UpdateValue>& mpValue,
-                         const map<string, string>& inParam, SelectResult &result, map<string, string>& outParam) 
-```
-**功能：** 调用ServerLess脚本 \
-**参数：**  
-```
-functionName 函数名
-functionVer 脚本的版本
-字段 vtFields
-vtConds 查找数据的条件
-mpValue 传入的函数，对于ServerLess仅透传
-inParam 传入的函数，对于ServerLess仅透传
-result 返回的数据。由DCache查好数据，传入引用到ServerLess脚本，如果不需要由脚本清空
-outParam 回传的函数，仅回传
-```
-
-**实例代码**：
-```c++
-    
-```
-
-
-**返回值**：
-DCache与ServerLess共用一个返回值。建议一般情况下返回ET_SUCC, 
-错误情况需要传回返回码请与DCache系统返回码区分开来，比如使用-10000代表脚本的某种错误
-
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC	|成功 | 0
- [↑返回标题↑](#header)
-
-```C++
-int callFunction(const string& functionName, const K& mainKey,
-                         const vector<Field>& vtFields, const vector<Condition>& vtCond, const map<string, UpdateValue>& mpValue,
-                         const map<string, string>& inParam, SelectResult &result, map<string, string>& outParam) 
-```
-**功能：** 调用ServerLess脚本 \
-**参数：**  
-```
-functionName 函数名
-字段 vtFields
-vtConds 查找数据的条件
-mpValue 传入的函数，对于ServerLess仅透传
-inParam 传入的函数，对于ServerLess仅透传
-result 返回的数据。由DCache查好数据，传入引用到ServerLess脚本，如果不需要由脚本清空
-outParam 回传的函数，仅回传
-```
-
-# <a id="list-getlist"></a> getList
-```C++
-int getList( const K &sMainKey, const vector<Field> &vtFields, taf::Int64 iPos, SelectResult &result )
-```
-**功能：** 根据指定的主键和索引查询数据\
-**参数：**
-```
-sMainKey 主键
-vtFields 需要查询的字段集，"*"表示所有
-iPos 索引
-result 查询结果
-```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 查询成功 | 0
- [↑返回标题↑](#header)
- 
- 
-
-# <a id="list-getrangelist"></a> getRangeList
-```C++
-int getRangeList( const std::string &mainKey, const vector<string> &field, taf::Int64 iStart, taf::Int64 iEnd, SelectResult &result )
-```
-**功能：** 根据指定的主键查找索引值在区间[startIndex, endIndex]的数据\
-**参数：**
-```
-mainKey 主键
-field 需要查询的字段集， "*"表示所有
-iStart 开始索引
-iEnd 结束索引
-result 查询结果集合
-```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 查询成功 | 0
- [↑返回标题↑](#header)
- 
- 
-
-# <a id="list-pushlist"></a> pushList
-```C++
-int pushList( const K &sMainKey, const MultiRowInserter &builder, taf::Bool bHead = false )
-```
-**功能：** 在list头部或者尾部插入数据，支持批量操作\
-**参数：**
-```
-sMainKey 主键
-builder 待插入数据
-bHead true表示插入到list头部，false表示插入尾部
-```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR | SLAVE状态下不提供接口服务 | -9
- ET_PARAM_DIGITAL_ERR | 字段错误，例如值为数字类型的字段包含了非数字字符 | -29
- ET_PARAM_TOO_LONG | 字段大小超过限制 | -28
- ET_PARAM_OP_ERR	| op错误，只支持SET | -31
- ET_PARAM_NOT_EXIST | 字段不存在 | -30
- ET_MEM_FULL | 内存不足 | -21
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 成功写入数据 | 0
- [↑返回标题↑](#header)
- 
- 
-
-# <a id="list-poplist"></a> popList
-```C++
-int popList( const K &sMainKey, taf::Bool bHead, SelectResult &result )
-```
-**功能：** 从list头部或者尾部删除一条数据\
-**参数：**
-```
-sMainKey 主键
-bHead true表示从list头部删除，false表示尾部删除
-result 被删除的数据
-```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR | SLAVE状态下不提供接口服务 | -9
- ET_NO_DATA | 数据不存在 | -6
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 成功删除 | 0
- [↑返回标题↑](#header)
- 
- 
-
-# <a id="list-replacelist"></a> replaceList
-```C++
-int replaceList( const K &sMainKey, const map<std::string, DCache::UpdateValue> &mpValue, taf::Int64 iPos, int iExpireTime )
-```
-**功能：** 根据指定主键更新list上指定索引的数据\
-**参数：**
-```
-sMainKey 主键
-mpValue 新数据
-iPos 待替换数据在列表中的索引
-iExpireTime 过期时间 为绝对时间
-```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARAM_OP_ERR	| op错误，只支持SET | -31
- ET_PARAM_NOT_EXIST | 字段不存在 | -30
- ET_PARAM_DIGITAL_ERR | 字段错误，例如值为数字类型的字段包含了非数字字符 | -29
- ET_PARAM_TOO_LONG | 字段大小超过限制 | -28
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR | SLAVE状态下不提供接口服务 | -9
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 替换成功 | 0
- [↑返回标题↑](#header)
-
-
-
-# <a id="list-trimlist"></a> trimList
-```C++
-int trimList( const K &sMainKey, taf::Int64 iStart, taf::Int64 iEnd )
-```
-**功能：** 裁剪列表，只保留指定区间：[iStart, iEnd]内的数据，删除区间外的数据\
-**参数：**
-```
-sMainKey 主键
-iStart 开始索引
-iEnd 结束索引
-```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR | SLAVE状态下不提供接口服务 | -9
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 操作成功 | 0
- [↑返回标题↑](#header)
- 
-
-
-# <a id="list-remlist"></a> remList
-```C++
-int remList( const K &sMainKey, taf::Bool bHead, taf::Int64 iCount )
-```
-**功能：** 从列表头部或者尾部删除一条或多条数据\
-**参数：**
-```
-sMainKey 主键
-bHead true表示从list头部删除，false表示从尾部删除
-iCount 指定删除数据条数
-```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR | SLAVE状态下不提供接口服务 | -9
- ET_NO_DATA	| 数据不存在 | -6
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 删除条数 | ≥0
- [↑返回标题↑](#header)
- 
- 
-
-# <a id="set-getset"></a> getSet
-```C++
-int getSet( const K &mainKey, const vector<Field> &vtFields, SelectResult &result )
-```
-**功能：** 查询数据\
-**参数：**
-```
-mainKey 主键
-vtFields 需要查询的字段集， "*"表示所有
-result 查询结果集合
-```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 查询成功 | 0
- [↑返回标题↑](#header)
- 
-
-
-# <a id="set-isinset"></a> isInSet
-```C++
-int isInSet( const K &mainKey, const map<std::string, DCache::UpdateValue> &mpValue , bool &bInSet )
-```
-**功能：** 判断指定的数据记录是否在Set中\
-**参数：**
-```
-mainKey 主键
-mpValue 其他字段数据
-bInSet 返回结果，是否在Set中
-```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARAM_OP_ERR	| op错误，只支持EQ | -31
- ET_PARAM_NOT_EXIST | 字段不存在 | -30
- ET_PARAM_DIGITAL_ERR | 字段错误，例如值为数字类型的字段包含了非数字字符 | -29
- ET_PARAM_TOO_LONG | 字段大小超过限制 | -28
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 成功删除数据 | 0
- [↑返回标题↑](#header)
- 
- 
- 
-# <a id="set-addset"></a> addSet
-```C++
-int addSet( const K &mainKey, const map<std::string, DCache::UpdateValue> &mpValue, int iExpireTime, taf::Char iVersion, taf::Bool bDirty )
-```
-**功能：** 写入数据\
-**参数：**
-```
-mainKey 主键
-mpValue 其他字段数据
-iExpireTime 过期时间，为相对时间
-iVersion 版本号
-bDirty 是否设置为脏数据，即是否回写db(存在db则应设为true)
-```
-**示例代码**：
-```C++
-DCache_Struct(Hash,timestamp,count,xxx)
-DBuilder builder;
-builder.set(Hash::uid=2341);
-builder.set(Hash::timestamp=2020);
-string main_key("test_add_set");
-int expire_time = 0;
-char version = 0;
-bool dirty = true;
-int ret = DCacheOpt::getInstance()->getClient().addSet(main_key, builder.genUpdateValues(), expire_time, version, dirty);
-
-```
-
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARAM_OP_ERR	| op错误，只支持SET | -31
- ET_PARAM_NOT_EXIST | 字段不存在 | -30
- ET_PARAM_DIGITAL_ERR | 字段错误，例如值为数字类型的字段包含了非数字字符 | -29
- ET_PARAM_TOO_LONG | 字段大小超过限制 | -28
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR | SLAVE状态下不提供接口服务 | -9
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 成功写入数据 | 0
- [↑返回标题↑](#header)
-
-
-
-# <a id="set-delset"></a> delSet
-```C++
-int delSet( const K &mainKey, const vector<DCache::Condition> &vtCond )
-```
-**功能：** 删除数据，只能删除一条数据\
-**参数：**
-```
-mainKey 主键
-vtCond 条件集合 只支持EQ
-```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARAM_OP_ERR	| op错误，只支持EQ | -31
- ET_PARAM_MISSING | 字段缺失 | -27
- ET_PARAM_REDUNDANT | 字段重复或字段不存在 | -26
- ET_DB_ERR | 数据库错误 | -24
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR | SLAVE状态下不提供接口服务 | -9
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 成功删除数据 | 0
- [↑返回标题↑](#header)
- 
-# <a id="zset-field"></a> ZSet隐藏字段
+### ZSet隐藏字段
 ```
 @ScoreValue : ZSet的分数
 ```
  
-# <a id="zset-getscore"></a> getScoreZSet
+### getScoreZSet
 ```C++
 int getScoreZSet( const K &mainKey, const vector<DCache::Condition> &vtCond, taf::Double &iScore )
 ```
@@ -1953,23 +887,8 @@ mainKey 主键
 vtCond 条件集合
 iScore 查询结果：记录的分值
 ```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARAM_OP_ERR	| op错误，只支持EQ | -31
- ET_PARAM_MISSING | 字段缺失 | -27
- ET_PARAM_REDUNDANT | 字段重复或字段不存在 | -26
- ET_DB_ERR | 数据库错误 | -24
- ET_NO_DATA | 条件指定的数据不存在 | -6
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 查询成功 | 0
- [↑返回标题↑](#header)
- 
 
-
-# <a id="zset-getrank"></a> getRankZSet
+### getRankZSet
 ```C++
 int getRankZSet( const K &mainKey, const vector<DCache::Condition> &vtCond, bool bOrder, taf::Int64 &iPos )
 ```
@@ -1981,23 +900,8 @@ vtCond 条件集合
 bOrder true表示按正序查找，false表示逆序查找
 iPos 查询结果：记录的在已排序列表的索引位置
 ```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARAM_OP_ERR	| op错误，只支持EQ | -31
- ET_PARAM_MISSING | 字段缺失 | -27
- ET_PARAM_REDUNDANT | 字段重复或字段不存在 | -26
- ET_DB_ERR | 数据库错误 | -24
- ET_NO_DATA | 条件指定的数据不存在 | -6
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 查询成功 | 0
- [↑返回标题↑](#header)
- 
 
-
-# <a id="zset-getrankandscore"></a> getRankAndScoreZSet
+### getRankAndScoreZSet
 ```C++
 int getRankAndScoreZSet( const K &mainKey, const vector<DCache::Condition> &vtCond, bool bOrder, taf::Int64 &iPos, taf::Double &iScore )
 ```
@@ -2010,22 +914,8 @@ bOrder true表示按正序查找，false表示逆序查找
 iPos 查询结果：记录的在已排序列表的索引位置
 iScore 查询结果：记录的分值
 ```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARAM_OP_ERR	| op错误，只支持EQ | -31
- ET_PARAM_MISSING | 字段缺失 | -27
- ET_PARAM_REDUNDANT | 字段重复或字段不存在 | -26
- ET_DB_ERR | 数据库错误 | -24
- ET_NO_DATA | 条件指定的数据不存在 | -6
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 查询成功 | 0
- [↑返回标题↑](#header)
  
- 
-# <a id="zset-getrankandscoreBatch"></a> getRankAndScoreZSetBatch
+### getRankAndScoreZSetBatch
 ```C++
 int getRankAndScoreZSetBatch(const vector<DCache::RankAndScoreKey>& keyInfo, bool bOrder,DCache::GetRankAndScoreZSetBatchRsp &rsp)
 ```
@@ -2080,7 +970,7 @@ struct RankAndScoreValue
 
 
 
-# <a id="zset-getrange"></a> getRangeZSet
+### getRangeZSet
 ```C++
 int getRangeZSet( const K &mainKey, const std::string &field, taf::Int64 iStart, taf::Int64 iEnd, taf::Bool bUp, SelectResult &result )
 ```
@@ -2100,19 +990,8 @@ bUp为true时，查询是以iStart为起始位置，向score递增方向查询
 bUp为false时，查询是从 总元素个数 - iEnd + 1 处起，向score递增的方向查询，
              查询 IEnd - iStart + 1 个元素
 ```
-
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_DB_ERR | 数据库错误 | -24
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 查询成功 | 0
- [↑返回标题↑](#header)
  
- 
- # <a id="zset-getrangebatch"></a> getRangeZSetBatch
+ ### getRangeZSetBatch
 ```C++
 int getRangeZSetBatch( const vector<DCache::GetRangeZSetBatchInfo> & vtInfo, const std::string & field, taf::Bool bUp, vector<SelectResult>& vtResults )
 ```
@@ -2145,24 +1024,8 @@ vtResults 查询结果数据集合
         auto value = item.data();//获取value
     }
 ```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_ONEKEY_EMPTY | 单个 or batch 接口中，入参，或者入参序列化后的结果 为empty string | -39
- ET_EXCEED_LIMIT | batch接口中key数量超出限制 | -38
- ET_DB_ERR | 数据库错误 | -24
- ET_FORBID_OPT | 禁止任何操作，比如在进行数据迁移时 | -11
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_KEY_INVALID | 无效的索引 | -3
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 查询成功 | 0
 
- [↑返回标题↑](#header)
-
-
-
-# <a id="zset-getrangebyscore"></a> getRangeZSetByScore
+### getRangeZSetByScore
 ```C++
 int getRangeZSetByScore( const K &mainKey, const std::string &field, taf::Double iMin, taf::Double iMax, SelectResult &result )
 ```
@@ -2175,20 +1038,8 @@ iMin 最小分值
 iMax 最大分值
 result 查询结果数据集合
 ```
-
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_DB_ERR | 数据库错误 | -24
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 查询成功 | 0
- [↑返回标题↑](#header)
  
- 
- 
-# <a id="zset-selectbatch"></a> getRangeZSetByScoreBatch
+### getRangeZSetByScoreBatch
 ```C++
 //每个mainkey支持带不同condition
 int getRangeZSetByScoreBatch(const vector<RangeZSetByScoreKey> & keyInfo, const std::string& field,  map<string, SelectResult>& result)
@@ -2279,20 +1130,8 @@ DCache_Struct(ZSet,uid,value1,value2,ScoreValue)
         cout<<"======================================="<<endl;
     }
 ```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARAM_LIMIT_VALUE_ERR | 更新条件集合的某个元素的limit属性值填写错误 | -34
- ET_PARAM_REDUNDANT	| 字段重复 | -26
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 查询成功 | 0
- [↑返回标题↑](#header)
  
- 
- 
-# <a id="zset-addzset"></a> addZSet
+### addZSet
 ```C++
 int addZSet( const K &mainKey, const map<std::string, DCache::UpdateValue> &mpValue, taf::Double score, int iExpireTime, taf::Char iVersion, taf::Bool bDirty)
 ```
@@ -2306,25 +1145,9 @@ iExpireTime 数据过期时间, 为相对时间
 iVersion 版本号
 bDirty 是否设置为脏数据，即是否回写db(存在db则应设为true)
 ```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARAM_OP_ERR | op错误，只支持SET | -31
- ET_PARAM_NOT_EXIST | 字段不存在 | -30
- ET_PARAM_DIGITAL_ERR | 字段错误，例如值为数字类型的字段包含了非数字字符 | -29
- ET_PARAM_TOO_LONG | 字段大小超过限制 | -28
- ET_MEM_FULL | 内存满 | -21
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR | SLAVE状态下不提供接口服务 | -9
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 添加成功 | 0
- [↑返回标题↑](#header)
- 
 
 
-# <a id="zset-incscore"></a> incScoreZSet
+### incScoreZSet
 ```C++
 int incScoreZSet( const K &mainKey, const map<std::string, DCache::UpdateValue> &mpValue, taf::Double score, int iExpireTime, taf::Char iVersion, taf::Bool bDirty )
 ```
@@ -2338,25 +1161,8 @@ iExpireTime 数据过期时间，为相对时间
 iVersion 版本号
 bDirty 是否设置为脏数据，即是否回写db(存在db则应设为true)
 ```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARAM_OP_ERR | op错误，只支持SET | -31
- ET_PARAM_NOT_EXIST | 字段不存在 | -30
- ET_PARAM_DIGITAL_ERR | 字段错误，例如值为数字类型的字段包含了非数字字符 | -29
- ET_PARAM_TOO_LONG | 字段大小超过限制 | -28
- ET_MEM_FULL | 内存满 | -21
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR | SLAVE状态下不提供接口服务 | -9
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 添加成功 | 0
- [↑返回标题↑](#header)
- 
 
-
-# <a id="zset-incscoreex"></a> incScoreZSetEx
+### incScoreZSetEx
 ```C++
 int incScoreZSetEx( const K &mainKey, const map<std::string, DCache::UpdateValue> &mpValue, taf::Double score, int iExpireTime, taf::Char iVersion, taf::Bool bDirty, IncScoreZSetExResult &tResult)
 ```
@@ -2371,25 +1177,8 @@ iVersion 版本号
 bDirty 是否设置为脏数据，即是否回写db(存在db则应设为true)
 tResult 包含本次操作是否导致新增元素，新旧分数以及新旧升降序排名
 ```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARAM_OP_ERR | op错误，只支持SET | -31
- ET_PARAM_NOT_EXIST | 字段不存在 | -30
- ET_PARAM_DIGITAL_ERR | 字段错误，例如值为数字类型的字段包含了非数字字符 | -29
- ET_PARAM_TOO_LONG | 字段大小超过限制 | -28
- ET_MEM_FULL | 内存满 | -21
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR | SLAVE状态下不提供接口服务 | -9
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 添加成功 | 0
- [↑返回标题↑](#header)
- 
- 
- 
-# <a id="zset-del"></a> delZSet
+
+### delZSet
 ```C++
 int delZSet( const K &mainKey, const vector<DCache::Condition> &vtCond )
 ```
@@ -2399,24 +1188,8 @@ int delZSet( const K &mainKey, const vector<DCache::Condition> &vtCond )
 mainKey 主键
 vtCond 条件集合，用来确定唯一一条数据，仅EQ
 ```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARAM_OP_ERR	| op错误，只支持EQ | -31
- ET_PARAM_MISSING | 字段缺失 | -27
- ET_PARAM_REDUNDANT | 字段重复或字段不存在 | -26
- ET_DB_ERR | 数据库错误 | -24
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR | SLAVE状态下不提供接口服务 | -9
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 删除成功 | 0
- [↑返回标题↑](#header)
- 
 
-
-# <a id="zset-delrange"></a> delRangeZSet
+### delRangeZSet
 ```C++
 int delRangeZSet( const K &mainKey, taf::Double iMin, taf::Double iMax )
 ```
@@ -2427,21 +1200,8 @@ mainKey 主键
 iMin 最小分值
 iMax 最大分值
 ```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_DB_ERR | 数据库错误 | -24
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR | SLAVE状态下不提供接口服务 | -9
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 删除成功 | 0
- [↑返回标题↑](#header)
 
-
-
-# <a id="zset-update"></a> updateZSet
+### updateZSet
 ```C++
 int updateZSet( const K &mainKey, const map<std::string, DCache::UpdateValue> &mpValue, const vector<DCache::Condition> &vtCond, int iExpireTime, taf::Char iVersion, taf::Bool bDirty )
 ```
@@ -2455,28 +1215,10 @@ iExpireTime 数据过期时间，为相对时间
 iVersion 版本号
 bDirty 是否设置为脏数据，即是否回写db(存在db则应设为true)
 ```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARAM_OP_ERR | op错误，只支持EQ | -31
- ET_PARAM_NOT_EXIST | 字段不存在 | -30
- ET_PARAM_DIGITAL_ERR | 字段错误，例如值为数字类型的字段包含了非数字字符 | -29
- ET_PARAM_TOO_LONG | 字段大小超过限制 | -28
- ET_PARAM_MISSING | 字段缺失 | -27
- ET_PARAM_REDUNDANT | 字段重复或字段不存在 | -26
- ET_DB_ERR | 数据库错误 | -24
- ET_INPUT_PARAM_ERROR | mainKey为空 | -12
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR | SLAVE状态下不提供接口服务 | -9
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 更新成功 | 0
- [↑返回标题↑](#header)
- 
- 
+
+## kv模块（使用DCacheAPI_N.h)
   
-# <a id="kv-get-API-N"></a> get(API_N)
+### get(API_N)
 ```C++
 int getString(const K& mainKey,string &val)
 int getString(const K& mainKey,string &val ,taf::Char& ver)
@@ -2488,19 +1230,8 @@ mainKey 主键
 val 结果
 ver 版本号
 ```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_NO_DATA | 数据不存在 | -6
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 更新成功 | 0
- [↑返回标题↑](#header)
 
-
-
-# <a id="kv-getbatch-API-N"></a> getBatch(API_N)
+### getBatch(API_N)
 ```C++
 template<typename V>
 BatchKeyValues<V> getBatch(const vector<K>& keys)
@@ -2573,18 +1304,8 @@ struct BatchKeyValues
     vector<Items> values;
 };
 ```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 更新成功 | 0
- [↑返回标题↑](#header) 
 
-
-
-# <a id="kv-del-API-N"></a> delString(API_N)
+### delString(API_N)
 ```C++
 int delString(const K& mainKey)
 ```
@@ -2594,9 +1315,7 @@ int delString(const K& mainKey)
 mainKey 主键
 ```
 
-
- 
-# <a id="kv-set-API-N"></a> set(API_N)
+### set(API_N)
 ```C++
 int setString(const K& mainKey, const string& val)
 int setString(const K& mainKey, const string& val, int expireTimeSecond = 0)
@@ -2610,24 +1329,8 @@ mainKey 主键
 val 值
 expireTimeSecond 过期时间，为相对时间(客户端传入的是相对时间，服务端存的是绝对时间(其值为当前时间加上传入的相对时间))
 ```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARAM_TOO_LONG | 字段大小超过限制 | -28
- ET_CACHE_ERR | 缓存错误 | -25
- ET_MEM_FULL | 内存满 | -21
- ET_DATA_VER_MISMATCH | 版本不一致 | -15
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR | SLAVE状态下不提供接口服务 | -9
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 更新成功 | 0
- [↑返回标题↑](#header)
  
- 
- 
-# <a id="kv-setbatch-API-N"></a> setBatch(API_N)
+### setBatch(API_N)
 ```C++
 template<typename V>
 int setBatch(const vector<K> &keys, const vector<V> &values, int expire_time = 0 , bool bNoResp = false)
@@ -2658,21 +1361,8 @@ values.push_back(tValue);
 int ret = -1;
 ret = DCacheOpt::getInstance()->getClient().setBatch<HUYA::LiveStatSummary>(keys, values);
 ```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_EXCEED_LIMIT | 输入参数超过限制错误 | -38
- ET_INPUT_PARAM_ERROR | 参数错误，例如key为空 | -12
- ET_SERVER_TYPE_ERR | SLAVE状态下不提供接口服务 | -9
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 更新成功 | 0
- [↑返回标题↑](#header)
  
- 
- 
-# <a id="kv-update-API-N"></a> updateStringEx(API_N)
+### updateStringEx(API_N)
 ```C++
 int updateString(const K& mainKey, const string& val, DCache::Op option, string &retValue,int expireTimeSecond = 0)
 ```
@@ -2686,278 +1376,3 @@ option 更新操作，支持ADD/ADD_INSERT/SUB/SUB_INSERT/PREPEND/APPEND
 其中数字类型一般使用ADD/ADD_INSERT/SUB/SUB_INSERT,带INSERT为不存在则插入，string类型一般用PREPEND/APPEND
 retValue 更新后的值
 ```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARAM_OP_ERR | op错误，只支持ADD/ADD_INSERT/SUB/SUB_INSERT | -31
- ET_PARAM_TOO_LONG | 字段大小超过限制 | -28
- ET_DB_ERR | 数据库读取错误 | -24
- ET_MEM_FULL | 内存满 | -21
- ET_DATA_VER_MISMATCH | 版本不一致 | -15
- ET_INPUT_PARAM_ERROR | 参数错误，例如key为空 | -12
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR | SLAVE状态下不提供接口服务 | -9
- ET_NO_DATA | 数据不存在 | -6
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 更新成功 | 0
- CACHE_KEY_AREA_ERR | 当前key不属于本机服务，需要更新路由表重新访问 | 5
- [↑返回标题↑](#header)
- 
- 
- 
-# <a id="kv-get"></a> get
-```C++
-int get( const K &k, V &v )
-int getWithVer( const K &k, V &v, int &iTimespan, taf::Int64 &lVersion )
-```
-**功能：** 获取值，不关心版本号/带版本号\
-**参数：**
-```
-k 主键
-v 结果
-lVersion 版本号
-```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_NO_DATA | 数据不存在 | -6
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 更新成功 | 0
- [↑返回标题↑](#header)
- 
- 
-  
-# <a id="kv-getbatch"></a> getBatch
-```C++
-int getBatch( const vector<K> &vk, vector<V> &v )
-```
-**功能：** 批量获取值\
-**参数：**
-```
-vk 主键集合
-v 结果集合
-```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 更新成功 | 0
- [↑返回标题↑](#header)
- 
- 
- 
-# <a id="kv-scan"></a> Scan
-```C++
-int Scan(int offset, int size, std::map<K,V>& mpData, std::vector<K>& timeout, bool &isEnd)
-```
-**功能：** 根据指定的范围查询哈希表中的数据\
-**参数：**
-```
-offset 游标位置，查询的起始位置
-size 查询位置的数量，即查询范围为[offset,offset+size)
-mpData 查询结果
-timeout scan超时的主键的集合
-isEnd 是否到达最终位置
-```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_INPUT_PARAM_ERROR | 参数错误，例如key为空 | -12
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 更新成功 | 0
- [↑返回标题↑](#header)
- 
- 
- 
-# <span id="kv-erase">erase</span>
-```C++
-int erase( const K &k)
-```
-**功能：** 删除非脏的数据\
-**参数：**
-```
-k 主键
-```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_ERASE_DIRTY_ERR | 不能用于删除脏数据 | -35
- ET_SERVER_TYPE_ERR | SLAVE状态下不提供接口服务 | -9
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 更新成功 | 0
- CACHE_KEY_AREA_ERR | 当前key不属于本机服务，需要更新路由表重新访问 | 5
- [↑返回标题↑](#header)
- 
- 
- 
-# <a id="kv-set"></a> set
-```C++
-int set( const K &k , const V &v, int expire_time, bool bNoResp = false ,bool bDirty = true)
-int setWithVer( const K &k, const V &v, taf::Int64 lVersion, int iExpireTime = 0, bool bNoResp = false,bool bDirty = true)
-```
-**功能：** 插入数据，不关心版本号/带版本号\
-**参数：**
-```
-k 主键
-v 值
-expire_time 过期时间，为相对时间
-bDirty 是否设置为脏数据，即是否回写db(存在db都应设为true)
-```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARAM_TOO_LONG | 字段大小超过限制 | -28
- ET_CACHE_ERR | 缓存错误 | -25
- ET_MEM_FULL | 内存满 | -21
- ET_DATA_VER_MISMATCH | 版本不一致 | -15
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR | SLAVE状态下不提供接口服务 | -9
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 更新成功 | 0
- [↑返回标题↑](#header)
- 
- 
- 
-# <a id="kv-setbatch"></a> setBatch
-```C++
-int setBatch( const  vector<K> &vKey, const vector<V> &vValue, int expire_time = 0 , bool bNoResp = false )
-```
-**功能：** 插入数据，不关心版本号\
-**参数：**
-```
-vKey 主键集合
-vValue 结果集合
-expire_time 过期时间，为相对时间
-```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_EXCEED_LIMIT | 输入参数超过限制错误 | -38
- ET_INPUT_PARAM_ERROR | 参数错误，例如key为空 | -12
- ET_SERVER_TYPE_ERR | SLAVE状态下不提供接口服务 | -9
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 更新成功 | 0
- [↑返回标题↑](#header)
- 
- 
- 
-# <a id="kv-modify"></a> modify
-```C++
-int modify( const K &k, F &&f , int expire_time = 0, bool bDirty = true )
-```
-**功能：** 从缓存中get数据，修改数据后set回去\
-**参数：**
-```
-k 主键
-f 修改方法
-expire_time 过期时间，为相对时间
-bDirty 是否设置为脏数据，即是否回写db(存在db都应设为true)
-```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARAM_TOO_LONG | 字段大小超过限制 | -28
- ET_CACHE_ERR | 缓存错误 | -25
- ET_MEM_FULL | 内存满 | -21
- ET_DATA_VER_MISMATCH | 版本不一致 | -15
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR | SLAVE状态下不提供接口服务 | -9
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 更新成功 | 0
- [↑返回标题↑](#header)
- 
- 
- 
-# <a id="kv-drop"></a> drop
-```C++
-int drop( const K &k , bool bNoResp = false )
-```
-**功能：** 删除数据\
-**参数：**
-```
-k 主键
-```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_DB_ERR | 数据库读取错误 | -24
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR | SLAVE状态下不提供接口服务 | -9
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 更新成功 | 0
- CACHE_KEY_AREA_ERR | 当前key不属于本机服务，需要更新路由表重新访问 | 5
- [↑返回标题↑](#header)
- 
- 
- 
-# <a id="kv-dropbatch"></a> dropBatch
-```C++
-int dropBatch( const vector<K> &vk , bool bNoResp = false )
-```
-**功能：** 批量删除数据\
-**参数：**
-```
-vk 主键集合
-```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_DB_ERR | 数据库读取错误 | -24
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 更新成功 | 0
- [↑返回标题↑](#header)
- 
- 
- 
-# <a id="kv-update"></a> updateStringEx
-```C++
-int updateStringEx(const K& k, const V & v,taf::Bool dirty,taf::Int32 expireTimeSecond,DCache::Op option,V &retValue)
-```
-**功能：** 更新数据\
-**参数：**
-```
-k 主键
-v 值
-dirty 是否设置为脏数据，即是否回写db(存在db都应设为true)
-expireTimeSecond 过期时间，为相对时间，
-option 更新操作，支持ADD/ADD_INSERT/SUB/SUB_INSERT/PREPEND/APPEND
-其中数字类型一般使用ADD/ADD_INSERT/SUB/SUB_INSERT,带INSERT为不存在则插入，string类型一般用PREPEND/APPEND
-
-```
-**返回值**：
-返回值字符串 | 含义 | 返回数值
------------------- | ----------------| ----------------
- ET_PARAM_OP_ERR | op错误，只支持ADD/ADD_INSERT/SUB/SUB_INSERT | -31
- ET_PARAM_TOO_LONG | 字段大小超过限制 | -28
- ET_DB_ERR | 数据库读取错误 | -24
- ET_MEM_FULL | 内存满 | -21
- ET_DATA_VER_MISMATCH | 版本不一致 | -15
- ET_INPUT_PARAM_ERROR | 参数错误，例如key为空 | -12
- ET_FORBID_OPT | 正在迁移，禁止操作 | -11
- ET_SERVER_TYPE_ERR | SLAVE状态下不提供接口服务 | -9
- ET_NO_DATA | 数据不存在 | -6
- ET_KEY_AREA_ERR	| 当前key不属于本机服务，需要更新路由表重新访问 | -4
- ET_MODULE_NAME_INVALID | 模块名错误 | -2
- ET_SYS_ERR	| 系统异常 | -1
- ET_SUCC | 更新成功 | 0
- CACHE_KEY_AREA_ERR | 当前key不属于本机服务，需要更新路由表重新访问 | 5
- [↑返回标题↑](#header)
- 
